@@ -1,0 +1,41 @@
+# parameters for the project
+# Detector and descriptor
+detector=SIFT
+descriptor=SIFT
+
+# Camera
+camera.cx=325.5;
+camera.cy=253.5;
+camera.fx=518.0;
+camera.fy=519.0;
+camera.scale=1000.0;
+
+# Start and end indices of images
+start_index=1
+end_index=783
+
+# Directory to image data
+rgb_dir=./data/rgb_png/
+rgb_extension=.png
+depth_dir=./data/depth_png/
+depth_extension=.png
+
+# Point cloud resolution
+voxel_grid=0.01
+
+# Real time visualization
+visualize_pointcloud=yes
+
+# Times below which matching distance 
+# above minimum matching distance will 
+# be considered as a good match
+good_match_threshold=4
+
+# Minimum number of matches
+min_good_match=10
+
+# Minimum number of inliers
+min_inliers=5
+
+# Maximum error of motion
+max_norm=0.3

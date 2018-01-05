@@ -1,0 +1,169 @@
+#ifndef SLAM_BASE_H_
+#define SLAM_BASE_H_
+#include <fstream>
+#include <vector>
+#include <string>
+#include <map>
+
+// Eigen
+#include <Eigen/Core>
+#include <Eigen/Geometry>
+
+// OpenCV
+#include <opencv2/opencv.hpp>
+#include <opencv2/core/eigen.hpp>
+#include <opencv2/nonfree/nonfree.hpp>
+
+// PCL
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_types.h>
+#include <pcl/common/transforms.h>
+#include <pcl/visualization/cloud_viewer.h>
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/filters/passthrough.h>
+
+typedef pcl::PointXYZRGBA Point7D;
+typedef pcl::PointCloud<Point7D> PointCloud;
+
+// Camera intrinsic parameters
+struct CAMERA_INTRINSIC_PARAMETERS
+{
+  double fx, fy, cx, cy, scale;
+};
+
+// Frame
+struct Frame
+{
+  cv::Mat rgb_img; 
+  cv::Mat depth_img;
+  cv::Mat descriptor;
+  std::vector<cv::KeyPoint> keypoint;
+};
+
+// Transformation between frames
+struct Transform
+{
+  cv::Mat r_vec;
+  cv::Mat t_vec;
+  int inliers;
+};
+
+// Function prototypes
+/*
+ * ImageToPointCloud function converts rgb and depth images to point cloud.
+ * @param rgb_img Input RGB image.
+ * @param depth_img Input depth image.
+ * @param camera Intrinsic parameters of camera.
+ * Return point cloud of which each point contains x, y, z, r, g, b, 
+ * and alpha values.
+ */
+PointCloud::Ptr ImageToPointCloud(const cv::Mat &rgb_image, 
+				  const cv::Mat &depth_image, 
+				  const CAMERA_INTRINSIC_PARAMETERS &camera);
+
+/*
+ * Point2dTo3d function coverts an image point with depth to a 3d point.
+ * @param point Point (u, v, d).
+ * @param Intrinsic parameters of camera.
+ * Return a three dimensional point (x, y, z).
+ */
+cv::Point3f Point2dTo3d(const cv::Point3f &point, 
+			const CAMERA_INTRINSIC_PARAMETERS& camera);
+/*
+ * ComputeKeyPointsAndDescriptors function computes key points and 
+ * descriptors.
+ * @param detector_name Specify what the feature detector is used.
+ * @param descriptor_name Specify what the feature descriptor is used.
+ * @param frame Key frame that is used to estimate motion.
+ */
+void ComputeKeyPointsAndDescriptors(std::string detector_name, 
+				    std::string descriptor_name,
+				    Frame& frame);
+
+/*
+ * EstimationMotion function determines the transformation between 
+ * two key frames.
+ * @param frame1 The first key frame.
+ * @param frame2 The second key frame.
+ * @param camera The camera intrinsic parameters.
+ */
+Transform EstimateMotion(const Frame &frame1, const Frame &frame2, 
+			 const CAMERA_INTRINSIC_PARAMETERS &camera);
+
+/*
+ * CvMat2Eigen function converts Mat in opencv to matrix in Eigen.
+ * @param r_vec Rotation vector.
+ * @param t_vec Translation vector.
+ * Return tranformation matrix in Eigen.
+ */
+Eigen::Isometry3d CvMat2Eigen(cv::Mat& r_vec, cv::Mat& t_vec);
+
+/*
+ * JoinPointCloud function join two point clouds.
+ * @param orig Original point cloud that is going to be transformed.
+ * @param new_frame New frame.
+ * @param Trans Transformation matrix.
+ * @param camera Camera intrinsic parameters.
+ * Return joined point cloud.
+ */
+PointCloud::Ptr JoinPointCloud(PointCloud::Ptr orig, 
+			       Frame& new_frame, 
+			       Eigen::Isometry3d Trans, 
+			       CAMERA_INTRINSIC_PARAMETERS& camera);
+
+// Class for loading parameters
+class ParameterReader
+{
+ public:
+  // Constructor
+  ParameterReader(std::string filename = "../parameters.txt")
+  {
+    std::ifstream f(filename.c_str());
+    if (!f.is_open()) {
+      std::cerr<<"Failed to open the specified parameter file."<<std::endl;
+      return;
+    }
+    std::string str;
+    while (std::getline(f, str)) {
+      if (str[0] == '#') {
+	continue;
+      }
+      int pos = str.find('=');
+      if (pos == std::string::npos) {
+	continue;
+      }
+      std::string key = str.substr(0, pos);
+      std::string value = str.substr(pos + 1, str.length());
+      data[key] = value;
+    }
+  }
+  
+  std::string GetData(std::string key)
+  {
+    std::map<std::string, std::string>::iterator iter = data.find(key);
+    if (iter == data.end()) {
+      std::cerr<<"Could not parameter "<<key<<std::endl;
+      return std::string("NOT FOUND!");
+    }
+    return iter->second;
+  }
+
+  // Destructor
+  virtual ~ParameterReader() {}
+
+ private:
+  std::map<std::string, std::string> data;
+};
+
+inline static CAMERA_INTRINSIC_PARAMETERS GetDefaultCamera(
+    ParameterReader &pr)
+{
+  CAMERA_INTRINSIC_PARAMETERS camera;
+  camera.fx = atof(pr.GetData("camera.fx").c_str());
+  camera.fy = atof(pr.GetData("camera.fy").c_str());
+  camera.cx = atof(pr.GetData("camera.cx").c_str());
+  camera.cy = atof(pr.GetData("camera.cy").c_str());
+  camera.scale = atof(pr.GetData("camera.scale").c_str());
+  return camera;
+}
+#endif
